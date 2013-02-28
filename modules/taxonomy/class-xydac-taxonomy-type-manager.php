@@ -90,12 +90,12 @@ class xydac_taxonomy_type_manager extends xydac_ultimate_cms_core{
 	}
 	function xydac_core_rowactions()
 	{
-		$action = array('Export'=>XYDAC_CMS_EXPORT_PATH."?taxonomy_name=");
-		return $action;
+		//$action = array('Export'=>XYDAC_CMS_EXPORT_PATH."?taxonomy_name=");
+		//return $action;
 	}
 	function xydac_core_doactions()
 	{
-		$action = array('activate'=>__("Activate",XYDAC_CMS_NAME),'deactivate'=>__("Deactivate",XYDAC_CMS_NAME),'delete'=>__("Delete",XYDAC_CMS_NAME));
+		$action = array('activate'=>__("Activate",XYDAC_CMS_NAME),'deactivate'=>__("Deactivate",XYDAC_CMS_NAME),'delete'=>__("Delete",XYDAC_CMS_NAME),'export'=>__("Export",XYDAC_CMS_NAME));
 		return $action;
 	}
 	function xydac_core_bulkaction($taxonomy)
@@ -115,7 +115,6 @@ class xydac_taxonomy_type_manager extends xydac_ultimate_cms_core{
 	}
 	function xydac_core_insert($datas)
 	{
-		$datas = array(0=>$datas);
 		foreach($datas as $k=>$data){
 			$datas[$k]['args']['labels']['name'] = xydac_mods_inflect::pluralize($datas[$k]['name']);
 			$datas[$k]['args']['label'] = (isset($datas[$k]['args']['labels']['name']) && !empty($datas[$k]['args']['labels']['name']))? $datas[$k]['args']['labels']['name']: xydac_mods_inflect::pluralize($datas[$k]['name']);
@@ -141,7 +140,7 @@ class xydac_taxonomy_type_manager extends xydac_ultimate_cms_core{
 			$datas[$k]['args']['show_tagcloud']= "true";
 			$datas[$k]['args']['hierarchical']= "false";
 		}
-		return $datas[0];
+		return $datas;
 	}
 }
 

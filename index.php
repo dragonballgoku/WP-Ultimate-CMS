@@ -24,6 +24,8 @@ require_once 'dao.php';
 require_once 'class-xydac-cms-module.php';
 require_once 'class-xydac-cms-home.php';
 require_once ABSPATH.'wp-includes'.DS.'class-IXR.php';
+require_once 'class-xydac-synckeys.php'; 
+
 
 function xydac()
 {
@@ -33,11 +35,11 @@ function xydac()
 class xydac_ultimate_cms{
 
 	protected static $instance;
-	public static $apikey;
-	public static $active;
-	public static $modules;
-	public static $allModules;//doesn't have core modules
-	public static $dao;
+	//public static $apikey;
+	//public static $active;
+	//public static $modules;
+	//public static $allModules;//doesn't have core modules
+	//public static $dao;
 	//has path of all important directories
 	protected static $dirpath = array();
 	protected static $menu_slug;
@@ -53,9 +55,6 @@ class xydac_ultimate_cms{
 					'fieldTypes'=>dirname(__FILE__).DS.'fieldTypes'.DS.'',
 					'userMods'=> ABSPATH.DS.'wp-content'.DS.'ultimate_cms'.DS.''
 			);
-			
-			
-			
 			self::$menu_slug = 'xydac_ultimate_cms';
 			self::cms()->dao = new xydac_options_dao();
 			self::cms()->modules = new stdClass();
@@ -64,7 +63,9 @@ class xydac_ultimate_cms{
 			self::cms()->active = self::cms()->dao->get_options(XYDAC_CMS_MODULES.'_active');
 			self::cms()->allModules = array();
 			self::cms()->apikey = get_option(XYDAC_CMS_USER_API_KEY);
+			self::cms()->synkeys = new xydac_synckeys();
 			self::load_modules();
+			
 			
 
 			//die(var_dump(self::cms()->modules));
@@ -99,7 +100,7 @@ class xydac_ultimate_cms{
 		}
 
 	}
-	private static function get_module_data(){
+	private function get_module_data(){
 		foreach (self::$dirpath as $mname=>$path){
 			$modules = array();
 			$module_headers = array(
@@ -112,50 +113,48 @@ class xydac_ultimate_cms{
 			);
 	
 			$modules_root = rtrim( $path, '\\' );//Knut Sparhell patch.
-			if(is_dir($modules_root)){
-				$modules_dir = @opendir($modules_root);
-				$module_files = array();
-		
-				if($modules_dir)
-				{
-					while (($file = readdir( $modules_dir ) ) !== false ) {
-						if ( substr($file, 0, 1) == '.' )
-							continue;
+			$modules_dir = @opendir($modules_root);
+			$module_files = array();
+	
+			if($modules_dir)
+			{
+				while (($file = readdir( $modules_dir ) ) !== false ) {
+					if ( substr($file, 0, 1) == '.' )
+						continue;
 						if ( is_dir( $modules_root.DS.$file ) ) {
 							$modules_subdir = @ opendir( $modules_root.DS.$file );
-							if ( $modules_subdir ) {
-								while (($subfile = readdir( $modules_subdir ) ) !== false ) {
-									if ( substr($subfile, 0, 1) == '.' )
-										continue;
-									if ( substr($subfile, -4) == '.php' )
+						if ( $modules_subdir ) {
+							while (($subfile = readdir( $modules_subdir ) ) !== false ) {
+								if ( substr($subfile, 0, 1) == '.' )
+									continue;
+								if ( substr($subfile, -4) == '.php' )
 										$module_files[] = "$file".DS."$subfile";
-								}
-								closedir( $modules_subdir );
 							}
-						} else {
-							if ( substr($file, -4) == '.php' )
-								$module_files[] = $file;
+							closedir( $modules_subdir );
 						}
+					} else {
+						if ( substr($file, -4) == '.php' )
+							$module_files[] = $file;
 					}
+				}
 					@closedir( $modules_dir );
+				@closedir($modules_dir);
 					@closedir($modules_dir);
-					@closedir($modules_dir);
-					
-					foreach($module_files as $file){
-						if(!is_readable($modules_root.'/'.$file)) continue;
-						$data = get_file_data($modules_root.'/'.$file, $module_headers);
-					
-						if(empty($data['name'])) continue;
-						if(($mname!='userMods' && $data['type']!='Core-Module') || ($mname=='userMods' && $data['type']!='Core-Module'))
-							$data['type'] = $mname;
-						else if($mname=='userMods' && $data['type']=='Core-Module')
-							continue;
-						$data['file']['filename'] = $file;
-						$data['file']['dirpath'] = $path;
-						$data['file']['dirname'] = dirname($file);
-						array_push(self::cms()->allModules,$data);
-						//$modules[dirname($file)] = $data;
-					}
+				
+				foreach($module_files as $file){
+					if(!is_readable($modules_root.'/'.$file)) continue;
+					$data = get_file_data($modules_root.'/'.$file, $module_headers);
+				
+					if(empty($data['name'])) continue;
+					if(($mname!='userMods' && $data['type']!='Core-Module') || ($mname=='userMods' && $data['type']!='Core-Module'))
+						$data['type'] = $mname;
+					else if($mname=='userMods' && $data['type']=='Core-Module')
+						continue;
+					$data['file']['filename'] = $file;
+					$data['file']['dirpath'] = $path;
+					$data['file']['dirname'] = dirname($file);
+					array_push(self::cms()->allModules,$data);
+					//$modules[dirname($file)] = $data;
 				}
 			}
 		}
@@ -412,7 +411,6 @@ DEBUG;
 	}
 
 }
-
 xydac();
 
 ?>

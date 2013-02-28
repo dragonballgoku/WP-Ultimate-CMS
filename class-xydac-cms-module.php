@@ -57,7 +57,7 @@ abstract class xydac_cms_module{
 		}
 		if($this->has_custom_fields){
 			$active_opt_arr = array();
-			$active_names = $this->get_main_names();
+			$active_names = $this->get_active_names();
 			if(is_array($active_names))
 				foreach($active_names as $opt=>$val)
 				$active_opt_arr[$this->get_registered_option('field').'_'.$val]=$module_name." ".$val;
@@ -183,7 +183,7 @@ abstract class xydac_cms_module{
 			if(empty($name))
 				$message = new WP_Error('err', $this->module_label.__(" Name is required to create ",XYDAC_CMS_NAME).$this->module_label);
 			elseif(($type=='main' && in_array($name,(array)$this->get_main_names())) || ($type=='field' && in_array($name,(array)$this->get_field_names($fieldmaster))))
-				$message = new WP_Error('err', $this->module_label.__(" Name already registered !!!",XYDAC_CMS_NAME));
+			$message = new WP_Error('err', $this->module_label.__(" Name already registered !!!",XYDAC_CMS_NAME));
 			elseif($name=="active"){
 				$message = new WP_Error('err', $this->module_label.__(" Name Not allowed",XYDAC_CMS_NAME));
 			}
@@ -258,7 +258,92 @@ abstract class xydac_cms_module{
 		$message = $this->module_label.__(' Deactivated.',XYDAC_CMS_NAME);
 		return $message;
 	}
-	function sync_main($name){
+	
+	function sync_object($type,$name,$namefieldname){
+		if ($type!='main')
+			return;
+		if(xydac()->apikey){
+			$xydac_option = $this->get_main_by_name($name);
+			$option_name = $this->get_registered_option('main');
+			//--Begin indentifying the id's for actual code and field code
+			$actual_code_id =-1;
+			$field_code_id =-1;
+			$syncid = xydac()->cms()->synkeys->get($this->get_module_name(),$name);
+			
+			if(xydac()->cms()->synkeys->isValid($this->get_module_name(),$name)){
+				
+				$xy_rpc_post = xydac()->xml_rpc_client('wp.getPost',$syncid, array('custom_fields'));
+				if(isset($xy_rpc_post) && $xy_rpc_post->isError()){
+					if(404==$xy_rpc_post->getErrorCode())//no remote data
+					{
+						//unset($xydac_options[$k]['sync_id']);
+						//update_option($option_name,$xydac_options);
+						xydac()->cms()->synkeys->remove($this->get_module_name(),$name);
+					}
+					$xydac_core_error = new WP_Error($xy_rpc_post->getErrorCode(), $xy_rpc_post->getErrorMessage().' Sync ID:'.$syncid);
+					return 	$xydac_core_error;	//return false;
+				}else if(isset($xy_rpc_post) && !$xy_rpc_post->isError()) {
+					$xy_rpc_post = $xy_rpc_post->getResponse();
+					foreach($xy_rpc_post['custom_fields'] as $arr)
+					{
+						if($arr['key']=='actual_code')
+							$actual_code_id = (int)$arr['id'];
+						else if($arr['key']=='field_code')
+							$field_code_id = (int)$arr['id'];
+					}
+				}
+			}
+			//--End indentifying the id's for actual code and field code
+				
+			//--Begin send Preparation
+			$content['post_title'] = $xydac_option[$namefieldname];
+			$content['post_type'] = 'xydac_'.$this->get_module_name();
+			$content['post_content'] = '<p>'.$xydac_option['description'].'</p>';
+			if($actual_code_id>0 && $field_code_id>0)
+				$content['custom_fields'] = array( array('id'=>$actual_code_id,'key' => 'actual_code','value'=>base64_encode(maybe_serialize($xydac_option))),array('id'=>$field_code_id,'key' => 'field_code','value'=>base64_encode(maybe_serialize(''))));
+			else
+				$content['custom_fields'] = array( array('key' => 'actual_code','value'=>base64_encode(maybe_serialize($xydac_option))),
+						array('key' => 'field_code','value'=>base64_encode(maybe_serialize(''))));
+			//--End send Preparation
+				
+			//--Begin Send the data for add or edit
+			if($syncid)
+				$result = xydac()->xml_rpc_client('wp.editPost',$syncid, $content);
+			else
+				$result = xydac()->xml_rpc_client('wp.newPost', $content);
+			//--End Send the data for add or edit
+				
+			//--Begin Process Received Data
+			if($result->isError()){
+				if(404==$result->getErrorCode())
+				{
+					/* unset($xydac_options[$k]['sync_id']);
+					update_option($option_name,$xydac_options); */
+					xydac()->cms()->synkeys->remove($this->get_module_name(),$name);
+				}
+				$xydac_core_error = new WP_Error($result->getErrorCode(), $result->getErrorMessage().' Sync ID:'.$syncid);
+				return 	$xydac_core_error;	//return false;
+			}else{
+				$result = $result->getResponse();
+				if($result!='-1')
+				{
+					/* $xydac_options[$k]['sync_id'] = $result;
+					update_option($option_name,$xydac_options); */
+					xydac()->cms()->synkeys->add($this->get_module_name(),$name,$result);
+				}
+				$xydac_core_error = $this->get_module_label().__(' Synced '.$result.' .',XYDAC_CMS_NAME);
+				do_action('xydac_core_sync',$name);
+				return 	$xydac_core_error;	//return true;
+			}
+			//--End Process Received Data
+				
+		
+			$xydac_core_error = new WP_Error('err', $this->get_module_label().__(" Not Found",XYDAC_CMS_NAME));
+			return $xydac_core_error ;//return false;
+		}else {
+			$this->xydac_core_error = new WP_Error('err', $this->get_module_label().__(" Api key is not defined",XYDAC_CMS_NAME));
+			return $xydac_core_error ;//return false;
+		}
 	}
 
 	
@@ -313,17 +398,18 @@ abstract class xydac_cms_module{
 			return;
 		return $this->_get_option('field',$args,$name);
 	}
+	/* This function returns the array of main items */
 	function get_field_by_name($name,$field_name,$fieldname_colname=null){
 		if(!$this->has_custom_fields || !isset($this->registered_option['field']))
 			return;
 		if(!empty($fieldname_colname)&&!empty($fieldtype_colname))
 			return $this->_get_option('field',array(
-					'is_value_array'=>'true','match_keys'=>'true',
+					'is_value_array'=>'true','match_keys'=>'true',//copied match_keys part from 1.0.5 not sure about it
 					'values'=>array($fieldname_colname=>array($field_name))
 			),$name);
 		else
 			return $this->_get_option('field',array(
-					'is_value_array'=>'true','match_keys'=>'true',
+					'is_value_array'=>'true','match_keys'=>'true',//copied match_keys part from 1.0.5 not sure about it
 					'values'=>array('field_name'=>array($field_name))
 			),$name);
 	}
@@ -467,7 +553,7 @@ abstract class xydac_cms_module{
 		if(!isset($_GET['manage_'.$this->module_name]))
 		{
 			$formaction = $tab['href'];
-			$selectdata = $this->get_main_names();
+			$selectdata = $this->get_active_names();
 			xydac()->log('view_fields_func',$selectdata);
 			?>
 <form name='manage_<?php echo $this->module_name ?>_fields'
