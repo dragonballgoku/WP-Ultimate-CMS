@@ -235,12 +235,12 @@ abstract class xydac_ultimate_cms_core{
 	$msg = $this->parent_class->sync_object($this->type, $name, $this->namefield_name);
 		if(is_wp_error(($msg))){
 			$this->xydac_core_error= $msg;
-			do_action('xydac_core_insert_update');
+			do_action('xydac_core_sync');
 			return false;
 		}
 		else{
 			$this->xydac_core_message = $msg;
-			do_action('xydac_core_insert_update');
+			do_action('xydac_core_sync');
 			return true;
 		}
 			

@@ -39,5 +39,8 @@ class xydac_synckeys{
 		else
 			return false;
 	}
+	public function get_all_sync_keys(){
+		return $this->synkeysarr;
+	}
 	
 }
